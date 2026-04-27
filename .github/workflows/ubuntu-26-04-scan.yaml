@@ -107,7 +107,9 @@ jobs:
           ssh -i id_rsa -p 2222 ubuntu@localhost <<'EOF'
           set -e
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+          sudo mkdir -p /tmp/trivy
           sudo ./bin/trivy rootfs / \
+            --cache-dir /tmp/trivy \
             --scanners vuln,misconfig \
             -f sarif \
             -o /tmp/report.sarif
