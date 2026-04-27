@@ -63,8 +63,19 @@ jobs:
 
           cloud-localds seed.iso user-data
 
-      - name: Prepare Trivy cache dir
-        run: mkdir -p trivy-cache
+      - name: Preload Trivy databases (host)
+        run: |
+          mkdir -p trivy-cache
+
+          docker run --rm \
+            -v $PWD/trivy-cache:/root/.cache/trivy \
+            aquasec/trivy:latest \
+            image --download-db-only
+
+          docker run --rm \
+            -v $PWD/trivy-cache:/root/.cache/trivy \
+            aquasec/trivy:latest \
+            image --download-java-db-only
 
       - name: Start Ubuntu 26.04 VM
         run: |
@@ -124,6 +135,8 @@ jobs:
           sudo ./bin/trivy rootfs / \
             --scanners vuln,misconfig \
             --cache-dir /mnt/trivy-cache \
+            --skip-db-update \
+            --skip-java-db-update \
             -f sarif \
             -o /tmp/report.sarif
           EOF
