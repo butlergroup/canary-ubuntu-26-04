@@ -39,7 +39,7 @@ jobs:
       - name: Download Ubuntu cloud image
         run: |
           curl -L --retry 5 -o ubuntu-26-04.img \
-            https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+            https://cloud-images.ubuntu.com/resolute/current/resolute-server-cloudimg-amd64.img
 
       - name: Generate SSH key
         run: |
@@ -63,6 +63,9 @@ jobs:
 
           cloud-localds seed.iso user-data
 
+      - name: Prepare Trivy cache dir
+        run: mkdir -p trivy-cache
+
       - name: Start Ubuntu 26.04 VM
         run: |
           qemu-system-x86_64 \
@@ -75,6 +78,7 @@ jobs:
             -boot c \
             -netdev user,id=net0,hostfwd=tcp::2222-:22 \
             -device virtio-net-pci,netdev=net0 \
+            -virtfs local,path=$PWD/trivy-cache,mount_tag=hostshare,security_model=none,id=hostshare \
             -nographic \
             -serial mon:stdio \
             > vm.log 2>&1 &
@@ -106,11 +110,20 @@ jobs:
         run: |
           ssh -i id_rsa -p 2222 ubuntu@localhost <<'EOF'
           set -e
+
+          # Create mount point
+          sudo mkdir -p /mnt/trivy-cache
+
+          # Mount shared folder
+          sudo mount -t 9p -o trans=virtio hostshare /mnt/trivy-cache
+
+          # Install Trivy
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
-          sudo mkdir -p /tmp/trivy
+
+          # Use external cache directory
           sudo ./bin/trivy rootfs / \
-            --cache-dir /tmp/trivy \
             --scanners vuln,misconfig \
+            --cache-dir /mnt/trivy-cache \
             -f sarif \
             -o /tmp/report.sarif
           EOF
